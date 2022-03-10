@@ -154,9 +154,16 @@ for epoch in range(num_epoch):
         d_loss.backward()
         d_optimizer.step()
 
-        if (i + 1) % batch_size*3 == 0:
-            print("Epoch [ {}/{} ]  Step [ {}/{} ]  d_loss : [{:.5f}]  g_loss : [{:.5f}]"
+        d_performance = discriminator(real_images).mean()
+        g_performance = discriminator(fake_images).mean()
+
+        if (i + 1) % 150 == 0:
+            print("Epoch [ {}/{} ]  Step [ {}/{} ]  d_loss : {:.5f}  g_loss : {:.5f}"
                   .format(epoch, num_epoch, i+1, len(data_loader), d_loss.item(), g_loss.item()))
+
+    # print discriminator & generator's performance
+    print(" Epock {}'s discriminator performance : {:.2f}  generator performance : {:.2f}"
+          .format(epoch, d_performance, g_performance))
 
     # Save fake images in each epoch
     samples = fake_images.reshape(batch_size, 1, 28, 28)
