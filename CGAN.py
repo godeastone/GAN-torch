@@ -1,9 +1,11 @@
 import os
 import torch.nn as nn
 import torch.utils.data
+import torch.nn.functional as F
 import torchvision
 from torchvision import transforms
 from torchvision.utils import save_image
+from PIL import Image, ImageFont, ImageDraw
 
 
 # Hyper-parameters & Variables setting
@@ -12,11 +14,17 @@ batch_size = 100
 learning_rate = 0.0002
 img_size = 28 * 28
 num_channel = 1
-dir_name = "GAN_results"
+dir_name = "CGAN_results"
 
 noise_size = 100
 hidden_size1 = 256
 hidden_size2 = 512
+
+"""
+FOR CONDITIONAL GAN
+"""
+# The number of MNIST's class label is 10
+condition_size = 10
 
 
 # Device setting
@@ -51,7 +59,7 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.linear1 = nn.Linear(img_size, hidden_size2)
+        self.linear1 = nn.Linear(img_size + condition_size, hidden_size2)
         self.linear2 = nn.Linear(hidden_size2, hidden_size1)
         self.linear3 = nn.Linear(hidden_size1, 1)
         self.leaky_relu = nn.LeakyReLU(0.2)
@@ -70,7 +78,7 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
 
-        self.linear1 = nn.Linear(noise_size, hidden_size1)
+        self.linear1 = nn.Linear(noise_size + condition_size, hidden_size1)
         self.linear2 = nn.Linear(hidden_size1, hidden_size2)
         self.linear3 = nn.Linear(hidden_size2, img_size)
         self.relu = nn.ReLU()
@@ -111,6 +119,14 @@ for epoch in range(num_epoch):
         # reshape real images from MNIST dataset
         real_images = images.reshape(batch_size, -1).to(device)
 
+        """
+        FOR CONDITIONAL GAN
+        """
+        # Encode MNIST's label's with 'one hot encoding'
+        label_encoded = F.one_hot(label, num_classes=10).to(device)
+        # concat real images with 'label encoded vector'
+        real_images_concat = torch.cat((real_images, label_encoded), 1)
+
         # +---------------------+
         # |   train Generator   |
         # +---------------------+
@@ -121,11 +137,18 @@ for epoch in range(num_epoch):
 
         # make fake images with generator & noise vector 'z'
         z = torch.randn(batch_size, noise_size).to(device)
-        fake_images = generator(z)
+
+        """
+        FOR CONDITIONAL GAN
+        """
+        # concat noise vector z with encoded labels
+        z_concat = torch.cat((z, label_encoded), 1)
+        fake_images = generator(z_concat)
+        fake_images_concat = torch.cat((fake_images, label_encoded), 1)
 
         # Compare result of discriminator with fake images & real labels
         # If generator deceives discriminator, g_loss will decrease
-        g_loss = criterion(discriminator(fake_images), real_label)
+        g_loss = criterion(discriminator(fake_images_concat), real_label)
 
         # Train generator with backpropagation
         g_loss.backward()
@@ -141,11 +164,18 @@ for epoch in range(num_epoch):
 
         # make fake images with generator & noise vector 'z'
         z = torch.randn(batch_size, noise_size).to(device)
-        fake_images = generator(z)
+
+        """
+        FOR CONDITIONAL GAN
+        """
+        # concat noise vector z with encoded labels
+        z_concat = torch.cat((z, label_encoded), 1)
+        fake_images = generator(z_concat)
+        fake_images_concat = torch.cat((fake_images, label_encoded), 1)
 
         # Calculate fake & real loss with generated images above & real images
-        fake_loss = criterion(discriminator(fake_images), fake_label)
-        real_loss = criterion(discriminator(real_images), real_label)
+        fake_loss = criterion(discriminator(fake_images_concat), fake_label)
+        real_loss = criterion(discriminator(real_images_concat), real_label)
         d_loss = (fake_loss + real_loss) / 2
 
         # Train discriminator with backpropagation
@@ -153,17 +183,33 @@ for epoch in range(num_epoch):
         d_loss.backward()
         d_optimizer.step()
 
-        d_performance = discriminator(real_images).mean()
-        g_performance = discriminator(fake_images).mean()
+        d_performance = discriminator(real_images_concat).mean()
+        g_performance = discriminator(fake_images_concat).mean()
 
         if (i + 1) % 150 == 0:
             print("Epoch [ {}/{} ]  Step [ {}/{} ]  d_loss : {:.5f}  g_loss : {:.5f}"
-                  .format(epoch, num_epoch, i+1, len(data_loader), d_loss.item(), g_loss.item()))
+                  .format(epoch + 1, num_epoch, i+1, len(data_loader), d_loss.item(), g_loss.item()))
 
     # print discriminator & generator's performance
     print(" Epock {}'s discriminator performance : {:.2f}  generator performance : {:.2f}"
-          .format(epoch, d_performance, g_performance))
+          .format(epoch + 1, d_performance, g_performance))
 
     # Save fake images in each epoch
     samples = fake_images.reshape(batch_size, 1, 28, 28)
-    save_image(samples, os.path.join(dir_name, 'GAN_fake_samples{}.png'.format(epoch + 1)))
+    save_image(samples, os.path.join(dir_name, 'CGAN_fake_samples{}.png'.format(epoch + 1)))
+    # print("label of 'CGAN_fake_samples{}.png' is {}".format(epoch + 1, label))
+
+    # Draw real labels on fake sample images
+    # If you got error about this, you can remove lines below
+    fake_sample_image = Image.open("{}/CGAN_fake_samples{}.png".format(dir_name, epoch + 1))
+    font = ImageFont.truetype("arial.ttf", 17)
+    label = label.tolist()
+    label = label[:10]
+    label = [str(l) for l in label]
+    label_text = ", ".join(label)
+    label_text = "first 10 labels in this image :\n" + label_text
+    image_edit = ImageDraw.Draw(fake_sample_image)
+    image_edit.multiline_text((15, 330), label_text, (255, 0, 0), font=font)
+    fake_sample_image.save("{}/CGAN_fake_samples{}.png".format(dir_name, epoch + 1))
+
+
