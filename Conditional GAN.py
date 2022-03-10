@@ -217,7 +217,7 @@ for epoch in range(num_epoch):
                               text=label_text,
                               fill=(255, 255, 240),
                               font=font,
-                              stroke_width= 2,
+                              stroke_width= 4,
                               stroke_fill=(0, 0, 0))
 =======
     image_edit.multiline_text((15, 330), label_text, (255, 255, 0), font=font)
