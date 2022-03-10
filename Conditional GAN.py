@@ -209,7 +209,7 @@ for epoch in range(num_epoch):
     label_text = ", ".join(label)
     label_text = "first 10 labels in this image :\n" + label_text
     image_edit = ImageDraw.Draw(fake_sample_image)
-    image_edit.multiline_text((15, 330), label_text, (255, 0, 0), font=font)
+    image_edit.multiline_text((15, 330), label_text, (255, 255, 0), font=font)
     fake_sample_image.save("{}/CGAN_fake_samples{}.png".format(dir_name, epoch + 1))
 
 
