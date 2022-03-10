@@ -203,13 +203,19 @@ for epoch in range(num_epoch):
     # If you got error about this, you can remove lines below
     fake_sample_image = Image.open("{}/CGAN_fake_samples{}.png".format(dir_name, epoch + 1))
     font = ImageFont.truetype("arial.ttf", 17)
+
     label = label.tolist()
     label = label[:10]
     label = [str(l) for l in label]
+
     label_text = ", ".join(label)
     label_text = "first 10 labels in this image :\n" + label_text
+
     image_edit = ImageDraw.Draw(fake_sample_image)
-    image_edit.multiline_text((15, 330), label_text, (255, 0, 0), font=font)
+    image_edit.multiline_text(xy=(15, 330),
+                              text=label_text,
+                              fill=(255, 255, 240),
+                              font=font,
+                              stroke_width= 2,
+                              stroke_fill=(0, 0, 0))
     fake_sample_image.save("{}/CGAN_fake_samples{}.png".format(dir_name, epoch + 1))
-
-
