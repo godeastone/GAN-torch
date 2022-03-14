@@ -3,13 +3,14 @@ import torch.nn as nn
 import torch.utils.data
 import torch.nn.functional as F
 import torchvision
+import numpy as np
 from torchvision import transforms
 from torchvision.utils import save_image
 from PIL import Image, ImageFont, ImageDraw
 
 
 # Hyper-parameters & Variables setting
-num_epoch = 200
+num_epoch = 100
 batch_size = 100
 learning_rate = 0.0002
 img_size = 28 * 28
@@ -19,6 +20,7 @@ dir_name = "CGAN_results"
 noise_size = 100
 hidden_size1 = 256
 hidden_size2 = 512
+hidden_size3 = 1024
 
 """
 FOR CONDITIONAL GAN
@@ -37,6 +39,67 @@ if not os.path.exists(dir_name):
     os.makedirs(dir_name)
 
 
+# Define discriminator
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+
+        self.linear1 = nn.Linear(img_size + condition_size, hidden_size3)
+        self.linear2 = nn.Linear(hidden_size3, hidden_size2)
+        self.linear3 = nn.Linear(hidden_size2, hidden_size1)
+        self.linear4 = nn.Linear(hidden_size1, 1)
+        self.leaky_relu = nn.LeakyReLU(0.2)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.leaky_relu(self.linear1(x))
+        x = self.leaky_relu(self.linear2(x))
+        x = self.leaky_relu(self.linear3(x))
+        x = self.linear4(x)
+        x = self.sigmoid(x)
+        return x
+
+
+# Define generator
+class Generator(nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+
+        self.linear1 = nn.Linear(noise_size + condition_size, hidden_size1)
+        self.linear2 = nn.Linear(hidden_size1, hidden_size2)
+        self.linear3 = nn.Linear(hidden_size2, hidden_size3)
+        self.linear4 = nn.Linear(hidden_size3, img_size)
+        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+
+    def forward(self, x):
+        x = self.relu(self.linear1(x))
+        x = self.relu(self.linear2(x))
+        x = self.relu(self.linear3(x))
+        x = self.linear4(x)
+        x = self.tanh(x)
+        return x
+
+
+# For checking CGAN's validity in final step
+def check_condition(_generator):
+    test_image = torch.empty(0).to(device)
+
+    for i in range(10):
+        test_label = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        test_label_encoded = F.one_hot(test_label, num_classes=10).to(device)
+
+        # create noise(latent vector) 'z'
+        _z = torch.randn(10, noise_size).to(device)
+        _z_concat = torch.cat((_z, test_label_encoded), 1)
+
+        test_image = torch.cat((test_image, _generator(_z_concat)), 0)
+
+    _result = test_image.reshape(100, 1, 28, 28)
+    save_image(_result, os.path.join(dir_name, 'CGAN_test_result.png'), nrow=10)
+
+
+
 # Dataset transform setting
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -52,44 +115,6 @@ MNIST_dataset = torchvision.datasets.MNIST(root='../../data/',
 data_loader = torch.utils.data.DataLoader(dataset=MNIST_dataset,
                                           batch_size=batch_size,
                                           shuffle=True)
-
-
-# Declares discriminator
-class Discriminator(nn.Module):
-    def __init__(self):
-        super(Discriminator, self).__init__()
-
-        self.linear1 = nn.Linear(img_size + condition_size, hidden_size2)
-        self.linear2 = nn.Linear(hidden_size2, hidden_size1)
-        self.linear3 = nn.Linear(hidden_size1, 1)
-        self.leaky_relu = nn.LeakyReLU(0.2)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        x = self.leaky_relu(self.linear1(x))
-        x = self.leaky_relu(self.linear2(x))
-        x = self.linear3(x)
-        x = self.sigmoid(x)
-        return x
-
-
-# Declares generator
-class Generator(nn.Module):
-    def __init__(self):
-        super(Generator, self).__init__()
-
-        self.linear1 = nn.Linear(noise_size + condition_size, hidden_size1)
-        self.linear2 = nn.Linear(hidden_size1, hidden_size2)
-        self.linear3 = nn.Linear(hidden_size2, img_size)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-
-    def forward(self, x):
-        x = self.relu(self.linear1(x))
-        x = self.relu(self.linear2(x))
-        x = self.linear3(x)
-        x = self.tanh(x)
-        return x
 
 
 # Initialize generator/Discriminator
@@ -220,3 +245,7 @@ for epoch in range(num_epoch):
                               stroke_width= 4,
                               stroke_fill=(0, 0, 0))
     fake_sample_image.save("{}/CGAN_fake_samples{}.png".format(dir_name, epoch + 1))
+
+
+# Check conditional GAN by using user-selected labels as condition value
+check_condition(generator)
