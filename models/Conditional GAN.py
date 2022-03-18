@@ -10,7 +10,7 @@ from PIL import Image, ImageFont, ImageDraw
 
 
 # Hyper-parameters & Variables setting
-num_epoch = 100
+num_epoch = 200
 batch_size = 100
 learning_rate = 0.0002
 img_size = 28 * 28
